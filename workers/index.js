@@ -127,8 +127,6 @@ const HTML_PAGE = `
         <div class="footer">
             &copy; 2026 | <a href="#">GALLS</a>
         </div>
-        
-        <div class="urls-list" id="urlsList"></div>
     </div>
 
     <script>
@@ -142,30 +140,6 @@ const HTML_PAGE = `
         const errorEl = document.getElementById('error');
         const resultEl = document.getElementById('result');
         const submitBtn = document.getElementById('submitBtn');
-        const urlsListEl = document.getElementById('urlsList');
-        
-        async function loadUrls() {
-            try {
-                const response = await fetch('/api/urls');
-                const urls = await response.json();
-                
-                if (urls.length > 0) {
-                    let html = '<h3>Your Shortened URLs</h3>';
-                    urls.forEach(function(u) {
-                        html += '<div class="url-item">';
-                        html += '<a href="' + escapeHtml(u.short_url) + '" target="_blank">' + escapeHtml(u.short_url) + '</a><br>';
-                        html += '<span class="original">' + escapeHtml(u.original_url) + '</span><br>';
-                        html += '<span class="clicks">' + u.clicks + ' clicks</span>';
-                        html += '</div>';
-                    });
-                    urlsListEl.innerHTML = html;
-                }
-            } catch (e) {
-                console.log('No URLs yet');
-            }
-        }
-        
-        loadUrls();
         
         form.addEventListener('submit', async function(e) {
             e.preventDefault();
@@ -194,7 +168,6 @@ const HTML_PAGE = `
                 } else {
                     resultEl.innerHTML = 'Your shortened URL:<br><a href="' + escapeHtml(data.short_url) + '" target="_blank">' + escapeHtml(data.short_url) + '</a>';
                     resultEl.classList.add('show');
-                    loadUrls();
                 }
             } catch (err) {
                 errorEl.textContent = 'An error occurred. Please try again.';
@@ -596,34 +569,6 @@ export default {
       } catch (e) {
         return new Response(JSON.stringify({ error: "Invalid request" }), {
           status: 400,
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        });
-      }
-    }
-
-    if (path === "/api/urls" && method === "GET") {
-      try {
-        const list = await env.URLS.list();
-        const urls = [];
-
-        for (const key of list.keys) {
-          const data = JSON.parse(await env.URLS.get(key.name));
-          urls.push({
-            code: key.name,
-            short_url: url.origin + "/" + key.name,
-            original_url: data.original_url,
-            clicks: data.clicks || 0,
-            created_at: data.created_at,
-          });
-        }
-
-        urls.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-
-        return new Response(JSON.stringify(urls), {
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        });
-      } catch (e) {
-        return new Response(JSON.stringify([]), {
           headers: { "Content-Type": "application/json", ...corsHeaders },
         });
       }
