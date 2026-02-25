@@ -96,7 +96,7 @@ const HTML_PAGE = `
 <body>
     <div class="container">
 <h1>🔗 URL Shorten</h1>
-        <p>Shorten your long URLs instantly!</p>
+        <p>Memperpendek URL secara instant</p>
         <form id="shortenForm">
             <div class="form-group">
                 <input type="url" name="url" placeholder="Enter your long URL here..." required>
@@ -105,31 +105,11 @@ const HTML_PAGE = `
         </form>
         <div class="error" id="error"></div>
         <div class="result" id="result"></div>
-        <div class="urls-list" id="urlsList"></div>
     </div>
     <script>
         const form = document.getElementById('shortenForm');
         const errorEl = document.getElementById('error');
         const resultEl = document.getElementById('result');
-        const urlsListEl = document.getElementById('urlsList');
-        
-        async function loadUrls() {
-            try {
-                const response = await fetch('/api/urls');
-                const urls = await response.json();
-                if (urls.length > 0) {
-                    urlsListEl.innerHTML = '<h3>Your Shortened URLs</h3>' + urls.map(u => 
-                        '<div class="url-item">' +
-                        '<a href="' + u.short_url + '" target="_blank">' + u.short_url + '</a><br>' +
-                        '<span class="original">' + u.original_url + '</span><br>' +
-                        '<span class="clicks">' + u.clicks + ' clicks</span>' +
-                        '</div>'
-                    ).join('');
-                }
-            } catch (e) { console.log('No URLs yet'); }
-        }
-        
-        loadUrls();
         
         form.addEventListener('submit', async function(e) {
             e.preventDefault();
@@ -156,7 +136,6 @@ const HTML_PAGE = `
                     resultEl.innerHTML = 'URL shortened successfully!';
                     resultEl.classList.add('show');
                     form.reset();
-                    loadUrls();
                 }
             } catch (err) {
                 errorEl.textContent = 'An error occurred. Please try again.';
