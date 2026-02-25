@@ -1,6 +1,7 @@
 /**
  * URL Shortener - Cloudflare Workers Version
  * For Cloudflare Pages
+ * SECURE VERSION - XSS Protection, Open Redirect Prevention, Rate Limiting
  */
 
 const HTML_PAGE = `
@@ -112,6 +113,13 @@ const HTML_PAGE = `
         </div>
     </div>
     <script>
+        // XSS Protection - Escape HTML special characters
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
         const form = document.getElementById('shortenForm');
         const errorEl = document.getElementById('error');
         const resultEl = document.getElementById('result');
@@ -134,10 +142,13 @@ const HTML_PAGE = `
                 const data = await response.json();
                 
                 if (data.error) {
+                    // Use textContent instead of innerHTML to prevent XSS
                     errorEl.textContent = data.error;
                     errorEl.classList.add('show');
                 } else {
-                    resultEl.innerHTML = '<div class="result-container"><input type="text" value="' + data.short_url + '" readonly id="shortUrlInput"><button class="action-btn copy-btn" onclick="copyUrl()">Copy</button><button class="action-btn refresh-btn" onclick="resetForm()">Refresh</button></div>';
+                    // XSS Protected - escape the short_url before displaying
+                    const safeUrl = escapeHtml(data.short_url);
+                    resultEl.innerHTML = '<div class="result-container"><input type="text" value="' + safeUrl + '" readonly id="shortUrlInput"><button class="action-btn copy-btn" onclick="copyUrl()">Copy</button><button class="action-btn refresh-btn" onclick="resetForm()">Refresh</button></div>';
                     resultEl.classList.add('show');
                 }
             } catch (err) {
@@ -171,6 +182,26 @@ const HTML_PAGE = `
 </html>
 `;
 
+// Rate limiting cache (in-memory for demo, use KV in production)
+const rateLimitCache = new Map();
+
+// Security: Allowed URL schemes
+const ALLOWED_SCHEMES = ["http:", "https:"];
+
+// Security: Blocked domains/patterns
+const BLOCKED_PATTERNS = [
+  /javascript:/i,
+  /data:/i,
+  /vbscript:/i,
+  /file:/i,
+  /about:/i,
+  /chrome:/i,
+];
+
+// Rate limiting configuration
+const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
+const RATE_LIMIT_MAX_REQUESTS = 10; // 10 requests per minute
+
 function generateShortCode(length = 6) {
   const chars =
     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -183,11 +214,68 @@ function generateShortCode(length = 6) {
 
 function isValidUrl(string) {
   try {
-    new URL(string);
-    return true;
+    const url = new URL(string);
+    return ALLOWED_SCHEMES.includes(url.protocol);
   } catch (_) {
     return false;
   }
+}
+
+// Check for malicious URL patterns
+function isMaliciousUrl(string) {
+  try {
+    const url = new URL(string);
+    // Check for dangerous protocols
+    if (!ALLOWED_SCHEMES.includes(url.protocol)) {
+      return true;
+    }
+    // Check for blocked patterns in the full URL
+    for (const pattern of BLOCKED_PATTERNS) {
+      if (pattern.test(string)) {
+        return true;
+      }
+    }
+    return false;
+  } catch (_) {
+    return true;
+  }
+}
+
+// Rate limiting function
+function isRateLimited(ip) {
+  const now = Date.now();
+  const windowStart = now - RATE_LIMIT_WINDOW;
+
+  // Clean old entries
+  for (const [key, timestamp] of rateLimitCache.entries()) {
+    if (timestamp < windowStart) {
+      rateLimitCache.delete(key);
+    }
+  }
+
+  const requestCount = (rateLimitCache.get(ip) || []).filter(
+    (t) => t > windowStart,
+  ).length;
+
+  if (requestCount >= RATE_LIMIT_MAX_REQUESTS) {
+    return true;
+  }
+
+  // Add current request
+  const timestamps = rateLimitCache.get(ip) || [];
+  timestamps.push(now);
+  rateLimitCache.set(ip, timestamps);
+
+  return false;
+}
+
+// Get client IP from request
+function getClientIP(request) {
+  const cfIP = request.headers.get("CF-Connecting-IP");
+  if (cfIP) return cfIP;
+  const forwarded = request.headers.get("X-Forwarded-For");
+  if (forwarded) return forwarded.split(",")[0];
+  return "unknown";
 }
 
 export default {
@@ -195,9 +283,21 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname;
     const method = request.method;
+    const clientIP = getClientIP(request);
+
+    // Rate limiting
+    if (isRateLimited(clientIP)) {
+      return new Response(
+        JSON.stringify({ error: "Too many requests. Please try again later." }),
+        {
+          status: 429,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+    }
 
     const corsHeaders = {
-      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Origin": url.origin, // Dynamic origin instead of wildcard
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type",
     };
@@ -229,18 +329,55 @@ export default {
           });
         }
 
+        // URL length validation (max 2048 characters)
+        if (originalUrl.length > 2048) {
+          return new Response(
+            JSON.stringify({ error: "URL too long (max 2048 characters)" }),
+            {
+              status: 400,
+              headers: { "Content-Type": "application/json", ...corsHeaders },
+            },
+          );
+        }
+
+        // Validate URL format and scheme
         if (!isValidUrl(originalUrl)) {
-          return new Response(JSON.stringify({ error: "Invalid URL format" }), {
-            status: 400,
-            headers: { "Content-Type": "application/json", ...corsHeaders },
-          });
+          return new Response(
+            JSON.stringify({
+              error: "Invalid URL format. Only HTTP and HTTPS are allowed.",
+            }),
+            {
+              status: 400,
+              headers: { "Content-Type": "application/json", ...corsHeaders },
+            },
+          );
+        }
+
+        // Check for malicious URLs
+        if (isMaliciousUrl(originalUrl)) {
+          return new Response(
+            JSON.stringify({ error: "This URL scheme is not allowed" }),
+            {
+              status: 400,
+              headers: { "Content-Type": "application/json", ...corsHeaders },
+            },
+          );
         }
 
         let code;
         let existing;
+        let attempts = 0;
+        const maxAttempts = 10;
+
         do {
           code = generateShortCode();
           existing = await env.URLS.get(code);
+          attempts++;
+          if (attempts >= maxAttempts) {
+            // Regenerate with different length if collision happens too many times
+            code = generateShortCode(8);
+            break;
+          }
         } while (existing);
 
         const urlData = {
@@ -264,15 +401,31 @@ export default {
       }
     }
 
+    // Redirect with open redirect protection
     if (path.startsWith("/") && path.length > 1 && !path.startsWith("/api")) {
       const code = path.slice(1);
+
+      // Validate code format (alphanumeric only)
+      if (!/^[a-zA-Z0-9]+$/.test(code)) {
+        return new Response("Page not found", { status: 404 });
+      }
+
       const data = await env.URLS.get(code);
 
       if (data) {
         const urlData = JSON.parse(data);
         urlData.clicks = (urlData.clicks || 0) + 1;
         await env.URLS.put(code, JSON.stringify(urlData));
-        return Response.redirect(urlData.original_url, 302);
+
+        // Validate redirect URL to prevent open redirect
+        if (
+          isValidUrl(urlData.original_url) &&
+          !isMaliciousUrl(urlData.original_url)
+        ) {
+          return Response.redirect(urlData.original_url, 302);
+        }
+        // If invalid, redirect to home page instead
+        return Response.redirect(url.origin, 302);
       }
     }
 
