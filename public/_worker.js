@@ -98,7 +98,7 @@ const HTML_PAGE = `
         <p>Memperpendek URL secara instant</p>
         <form id="shortenForm">
             <div class="form-group">
-                <input type="url" name="url" placeholder="Enter your long URL here..." required>
+<input type="url" name="url" placeholder="Enter your long URL here..." autocomplete="off" required>
             </div>
             <button type="submit">Shorten URL</button>
         </form>
