@@ -54,15 +54,8 @@ const HTML_PAGE = `
             transition: transform 0.2s, box-shadow 0.2s;
         }
         button:hover {
-            transform: translateY(-2px: 0 );
-            box-shadow10px 30px rgba(102, 126, 234, 0.4);
-        }
-        .btn-secondary {
-            background: #666 !important;
-            margin-top: 10px;
-        }
-        .btn-secondary:hover {
-            box-shadow: 0 10px 30px rgba(102, 102, 102, 0.4) !important;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
         }
         .result {
             margin-top: 20px;
@@ -75,9 +68,12 @@ const HTML_PAGE = `
         .result a { color: #667eea; font-weight: 600; word-break: break-all; }
         .result-container { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
         .result-container input { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 14px; min-width: 200px; }
-        .copy-btn { padding: 10px 15px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; white-space: nowrap; }
+        .action-btn { padding: 10px 15px; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; white-space: nowrap; }
+        .copy-btn { background: #667eea; }
         .copy-btn:hover { background: #5568d3; }
         .copy-btn.copied { background: #28a745; }
+        .refresh-btn { background: #9e9e9e; }
+        .refresh-btn:hover { background: #757575; }
         .error {
             background: #fee;
             color: #c00;
@@ -109,7 +105,6 @@ const HTML_PAGE = `
             </div>
             <button type="submit">Shorten URL</button>
         </form>
-        <button class="btn-secondary" onclick="resetForm()">Refresh</button>
         <div class="error" id="error"></div>
         <div class="result" id="result"></div>
         <div class="footer">
@@ -142,7 +137,7 @@ const HTML_PAGE = `
                     errorEl.textContent = data.error;
                     errorEl.classList.add('show');
                 } else {
-                    resultEl.innerHTML = '<div class="result-container"><input type="text" value="' + data.short_url + '" readonly id="shortUrlInput"><button class="copy-btn" onclick="copyUrl()">Copy</button></div>';
+                    resultEl.innerHTML = '<div class="result-container"><input type="text" value="' + data.short_url + '" readonly id="shortUrlInput"><button class="action-btn copy-btn" onclick="copyUrl()">Copy</button><button class="action-btn refresh-btn" onclick="resetForm()">Refresh</button></div>';
                     resultEl.classList.add('show');
                 }
             } catch (err) {
