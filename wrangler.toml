@@ -1,0 +1,12 @@
+name = "shorten-url"
+main = "workers/index.js"
+compatibility_date = "2024-01-01"
+
+# Enable KV namespace for URL storage
+[[kv_namespaces]]
+binding = "URLS"
+id = "YOUR_KV_NAMESPACE_ID"
+
+# Route for custom domain (uncomment and modify after setting up custom domain)
+# route = "/*"
+# zone_name = "your-domain.com"
