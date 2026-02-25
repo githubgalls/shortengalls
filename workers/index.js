@@ -241,6 +241,22 @@ const BLOCKED_TLDS = [
   ".work",
   ".click",
   ".link",
+  ".pw",
+  ".cc",
+  ".ws",
+  ".buzz",
+  ".monster",
+  ".download",
+  ".guru",
+  ".science",
+  ".cricket",
+  ".win",
+  ".live",
+  ".icu",
+  ".cfd",
+  ".rest",
+  ".shop",
+  ".store",
 ];
 
 // ============ HELPER FUNCTIONS ============
@@ -368,7 +384,7 @@ async function checkSafeBrowsing(url, apiKey) {
 
     if (!response.ok) {
       console.error("Safe Browsing API error:", response.status);
-      return { safe: true };
+      return { safe: false }; // FAIL-CLOSED
     }
 
     const data = await response.json();
