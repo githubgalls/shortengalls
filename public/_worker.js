@@ -145,10 +145,9 @@ const HTML_PAGE = `
                     errorEl.textContent = data.error;
                     errorEl.classList.add('show');
                 } else {
-                    // URL shortened successfully - URL is saved but not displayed
-                    resultEl.innerHTML = 'URL shortened successfully!';
+                    // Tampilkan hasil URL pendek
+                    resultEl.innerHTML = 'Short URL: <a href="' + data.short_url + '" target="_blank">' + data.short_url + '</a>';
                     resultEl.classList.add('show');
-                    form.reset();
                 }
             } catch (err) {
                 errorEl.textContent = 'An error occurred. Please try again.';
