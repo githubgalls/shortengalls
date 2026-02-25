@@ -115,7 +115,9 @@ const HTML_PAGE = `
         </form>
         <div class="error" id="error"></div>
         <div class="result" id="result"></div>
-
+        <div class="footer">
+            © <a href="#">c galls</a>
+        </div>
     </div>
     <script>
         const form = document.getElementById('shortenForm');
@@ -301,9 +303,6 @@ export default {
         return Response.redirect(urlData.original_url, 302);
       }
     }
-    <div class="footer">
-      © <a href="#">c galls</a>
-    </div>;
 
     return new Response("Page not found", { status: 404 });
   },
