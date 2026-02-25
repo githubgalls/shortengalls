@@ -5,4 +5,4 @@ pages_build_output_dir = "public"
 # Enable KV namespace for URL storage
 [[kv_namespaces]]
 binding = "URLS"
-id = "YOUR_KV_NAMESPACE_ID"
+id = "e1a22a86d5dd4260bd61cbb8805744e8"
