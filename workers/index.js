@@ -1,7 +1,6 @@
 /**
  * URL Shortener - Cloudflare Workers Version
- * Uses Workers KV for data storage (free tier)
- * SECURE VERSION - XSS Protection, Open Redirect Prevention, Rate Limiting
+ * SECURE VERSION with Phishing Protection
  */
 
 const HTML_PAGE = `
@@ -76,6 +75,14 @@ const HTML_PAGE = `
             display: none;
         }
         .error.show { display: block; }
+        .warning {
+            background: #fff3cd;
+            color: #856404;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            font-size: 13px;
+        }
         .urls-list {
             margin-top: 30px;
             border-top: 1px solid #eee;
@@ -108,12 +115,14 @@ const HTML_PAGE = `
         
         <div class="error" id="error"></div>
         <div class="result" id="result"></div>
+        <div class="warning">
+            ⚠️ This service is for legitimate URLs only. Abuse will be reported.
+        </div>
         
         <div class="urls-list" id="urlsList"></div>
     </div>
 
     <script>
-        // XSS Protection - Escape HTML special characters
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text;
@@ -125,7 +134,6 @@ const HTML_PAGE = `
         const resultEl = document.getElementById('result');
         const urlsListEl = document.getElementById('urlsList');
         
-        // Load existing URLs - XSS Protected
         async function loadUrls() {
             try {
                 const response = await fetch('/api/urls');
@@ -171,7 +179,6 @@ const HTML_PAGE = `
                     errorEl.textContent = data.error;
                     errorEl.classList.add('show');
                 } else {
-                    // XSS Protected
                     resultEl.innerHTML = 'Your shortened URL:<br><a href="' + escapeHtml(data.short_url) + '" target="_blank">' + escapeHtml(data.short_url) + '</a>';
                     resultEl.classList.add('show');
                     loadUrls();
@@ -186,13 +193,8 @@ const HTML_PAGE = `
 </html>
 `;
 
-// Rate limiting cache
 const rateLimitCache = new Map();
-
-// Security: Allowed URL schemes
 const ALLOWED_SCHEMES = ["http:", "https:"];
-
-// Security: Blocked patterns
 const BLOCKED_PATTERNS = [
   /javascript:/i,
   /data:/i,
@@ -201,10 +203,50 @@ const BLOCKED_PATTERNS = [
   /about:/i,
   /chrome:/i,
 ];
-
-// Rate limiting config
 const RATE_LIMIT_WINDOW = 60 * 1000;
 const RATE_LIMIT_MAX_REQUESTS = 10;
+
+const PHISHING_KEYWORDS = [
+  "login",
+  "signin",
+  "verify",
+  "secure",
+  "account",
+  "update",
+  "confirm",
+  "banking",
+  "password",
+  "credential",
+  "auth",
+  "paypal",
+  "apple",
+  "microsoft",
+  "google",
+  "amazon",
+  "facebook",
+  "instagram",
+  "twitter",
+  "netflix",
+  "spotify",
+  "coinbase",
+  "binance",
+  "metamask",
+  "wallet",
+  "crypto",
+];
+
+const BLOCKED_TLDS = [
+  ".tk",
+  ".ml",
+  ".ga",
+  ".cf",
+  ".gq",
+  ".xyz",
+  ".top",
+  ".work",
+  ".click",
+  ".link",
+];
 
 function generateShortCode(length = 6) {
   const chars =
@@ -236,6 +278,60 @@ function isMaliciousUrl(string) {
         return true;
       }
     }
+    return false;
+  } catch (_) {
+    return true;
+  }
+}
+
+function isSuspiciousUrl(string) {
+  try {
+    const url = new URL(string);
+    const hostname = url.hostname.toLowerCase();
+
+    for (const tld of BLOCKED_TLDS) {
+      if (hostname.endsWith(tld)) {
+        return true;
+      }
+    }
+
+    const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
+    if (ipRegex.test(hostname)) {
+      return true;
+    }
+
+    const parts = hostname.split(".");
+    if (parts.length > 4) {
+      return true;
+    }
+
+    const hasPhishingKeyword = PHISHING_KEYWORDS.some((kw) =>
+      hostname.includes(kw),
+    );
+
+    if (hasPhishingKeyword) {
+      const freeTLDs = [
+        ".tk",
+        ".ml",
+        ".ga",
+        ".cf",
+        ".gq",
+        ".xyz",
+        ".top",
+        ".work",
+        ".click",
+        ".link",
+        ".pw",
+        ".cc",
+        ".ws",
+      ];
+      for (const tld of freeTLDs) {
+        if (hostname.endsWith(tld)) {
+          return true;
+        }
+      }
+    }
+
     return false;
   } catch (_) {
     return true;
@@ -282,7 +378,6 @@ export default {
     const method = request.method;
     const clientIP = getClientIP(request);
 
-    // Rate limiting
     if (isRateLimited(clientIP)) {
       return new Response(
         JSON.stringify({ error: "Too many requests. Please try again later." }),
@@ -293,7 +388,6 @@ export default {
       );
     }
 
-    // Dynamic CORS instead of wildcard
     const corsHeaders = {
       "Access-Control-Allow-Origin": url.origin,
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -327,7 +421,6 @@ export default {
           });
         }
 
-        // URL length validation
         if (originalUrl.length > 2048) {
           return new Response(
             JSON.stringify({ error: "URL too long (max 2048 characters)" }),
@@ -360,6 +453,10 @@ export default {
           );
         }
 
+        if (isSuspiciousUrl(originalUrl)) {
+          console.log("Suspicious URL detected:", originalUrl);
+        }
+
         let code;
         let existing;
         let attempts = 0;
@@ -379,6 +476,7 @@ export default {
           original_url: originalUrl,
           created_at: new Date().toISOString(),
           clicks: 0,
+          ip: clientIP,
         };
 
         await env.URLS.put(code, JSON.stringify(urlData));
@@ -396,7 +494,6 @@ export default {
       }
     }
 
-    // API: Get all URLs - XSS Protected on client side
     if (path === "/api/urls" && method === "GET") {
       try {
         const list = await env.URLS.list();
@@ -425,11 +522,9 @@ export default {
       }
     }
 
-    // Redirect with open redirect protection
     if (path.startsWith("/") && path.length > 1 && !path.startsWith("/api")) {
       const code = path.slice(1);
 
-      // Validate code format
       if (!/^[a-zA-Z0-9]+$/.test(code)) {
         return new Response("Page not found", { status: 404 });
       }

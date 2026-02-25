@@ -1,7 +1,6 @@
 /**
  * URL Shortener - Cloudflare Workers Version
- * For Cloudflare Pages
- * SECURE VERSION - XSS Protection, Open Redirect Prevention, Rate Limiting
+ * SECURE VERSION with Phishing Protection
  */
 
 const HTML_PAGE = `
@@ -84,16 +83,21 @@ const HTML_PAGE = `
             display: none;
         }
         .error.show { display: block; }
+        .warning {
+            background: #fff3cd;
+            color: #856404;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            font-size: 13px;
+        }
         .footer {
             margin-top: 30px;
             text-align: center;
             color: #999;
             font-size: 14px;
         }
-        .footer a {
-            color: #667eea;
-            text-decoration: none;
-        }
+        .footer a { color: #667eea; text-decoration: none; }
     </style>
 </head>
 <body>
@@ -108,12 +112,14 @@ const HTML_PAGE = `
         </form>
         <div class="error" id="error"></div>
         <div class="result" id="result"></div>
+        <div class="warning">
+            ⚠️ Layanan ini hanya untuk URL yang sah. Penyalahgunaan akan dilaporkan.
+        </div>
         <div class="footer">
             © <a href="#">2026 | GALLS</a>
         </div>
     </div>
     <script>
-        // XSS Protection - Escape HTML special characters
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text;
@@ -142,11 +148,9 @@ const HTML_PAGE = `
                 const data = await response.json();
                 
                 if (data.error) {
-                    // Use textContent instead of innerHTML to prevent XSS
                     errorEl.textContent = data.error;
                     errorEl.classList.add('show');
                 } else {
-                    // XSS Protected - escape the short_url before displaying
                     const safeUrl = escapeHtml(data.short_url);
                     resultEl.innerHTML = '<div class="result-container"><input type="text" value="' + safeUrl + '" readonly id="shortUrlInput"><button class="action-btn copy-btn" onclick="copyUrl()">Copy</button><button class="action-btn refresh-btn" onclick="resetForm()">Refresh</button></div>';
                     resultEl.classList.add('show');
@@ -182,13 +186,8 @@ const HTML_PAGE = `
 </html>
 `;
 
-// Rate limiting cache (in-memory for demo, use KV in production)
 const rateLimitCache = new Map();
-
-// Security: Allowed URL schemes
 const ALLOWED_SCHEMES = ["http:", "https:"];
-
-// Security: Blocked domains/patterns
 const BLOCKED_PATTERNS = [
   /javascript:/i,
   /data:/i,
@@ -197,10 +196,52 @@ const BLOCKED_PATTERNS = [
   /about:/i,
   /chrome:/i,
 ];
+const RATE_LIMIT_WINDOW = 60 * 1000;
+const RATE_LIMIT_MAX_REQUESTS = 10;
 
-// Rate limiting configuration
-const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
-const RATE_LIMIT_MAX_REQUESTS = 10; // 10 requests per minute
+// Blocked keywords that indicate phishing/malicious
+const PHISHING_KEYWORDS = [
+  "login",
+  "signin",
+  "verify",
+  "secure",
+  "account",
+  "update",
+  "confirm",
+  "banking",
+  "password",
+  "credential",
+  "auth",
+  "paypal",
+  "apple",
+  "microsoft",
+  "google",
+  "amazon",
+  "facebook",
+  "instagram",
+  "twitter",
+  "netflix",
+  "spotify",
+  "coinbase",
+  "binance",
+  "metamask",
+  "wallet",
+  "crypto",
+];
+
+// Known phishing TLDs
+const BLOCKED_TLDS = [
+  ".tk",
+  ".ml",
+  ".ga",
+  ".cf",
+  ".gq",
+  ".xyz",
+  ".top",
+  ".work",
+  ".click",
+  ".link",
+];
 
 function generateShortCode(length = 6) {
   const chars =
@@ -221,15 +262,12 @@ function isValidUrl(string) {
   }
 }
 
-// Check for malicious URL patterns
 function isMaliciousUrl(string) {
   try {
     const url = new URL(string);
-    // Check for dangerous protocols
     if (!ALLOWED_SCHEMES.includes(url.protocol)) {
       return true;
     }
-    // Check for blocked patterns in the full URL
     for (const pattern of BLOCKED_PATTERNS) {
       if (pattern.test(string)) {
         return true;
@@ -241,12 +279,70 @@ function isMaliciousUrl(string) {
   }
 }
 
-// Rate limiting function
+// Enhanced phishing detection
+function isSuspiciousUrl(string) {
+  try {
+    const url = new URL(string);
+    const hostname = url.hostname.toLowerCase();
+
+    // Check blocked TLDs
+    for (const tld of BLOCKED_TLDS) {
+      if (hostname.endsWith(tld)) {
+        return true;
+      }
+    }
+
+    // Check for IP address in hostname (suspicious)
+    const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
+    if (ipRegex.test(hostname)) {
+      return true;
+    }
+
+    // Check for excessive subdomains
+    const parts = hostname.split(".");
+    if (parts.length > 4) {
+      return true;
+    }
+
+    // Check for phishing keywords in URL (only if combined with suspicious patterns)
+    const hasPhishingKeyword = PHISHING_KEYWORDS.some((kw) =>
+      hostname.includes(kw),
+    );
+
+    // If has phishing keyword AND uses free TLD, flag it
+    if (hasPhishingKeyword) {
+      const freeTLDs = [
+        ".tk",
+        ".ml",
+        ".ga",
+        ".cf",
+        ".gq",
+        ".xyz",
+        ".top",
+        ".work",
+        ".click",
+        ".link",
+        ".pw",
+        ".cc",
+        ".ws",
+      ];
+      for (const tld of freeTLDs) {
+        if (hostname.endsWith(tld)) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  } catch (_) {
+    return true;
+  }
+}
+
 function isRateLimited(ip) {
   const now = Date.now();
   const windowStart = now - RATE_LIMIT_WINDOW;
 
-  // Clean old entries
   for (const [key, timestamp] of rateLimitCache.entries()) {
     if (timestamp < windowStart) {
       rateLimitCache.delete(key);
@@ -261,7 +357,6 @@ function isRateLimited(ip) {
     return true;
   }
 
-  // Add current request
   const timestamps = rateLimitCache.get(ip) || [];
   timestamps.push(now);
   rateLimitCache.set(ip, timestamps);
@@ -269,7 +364,6 @@ function isRateLimited(ip) {
   return false;
 }
 
-// Get client IP from request
 function getClientIP(request) {
   const cfIP = request.headers.get("CF-Connecting-IP");
   if (cfIP) return cfIP;
@@ -285,7 +379,6 @@ export default {
     const method = request.method;
     const clientIP = getClientIP(request);
 
-    // Rate limiting
     if (isRateLimited(clientIP)) {
       return new Response(
         JSON.stringify({ error: "Too many requests. Please try again later." }),
@@ -297,7 +390,7 @@ export default {
     }
 
     const corsHeaders = {
-      "Access-Control-Allow-Origin": url.origin, // Dynamic origin instead of wildcard
+      "Access-Control-Allow-Origin": url.origin,
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type",
     };
@@ -329,7 +422,6 @@ export default {
           });
         }
 
-        // URL length validation (max 2048 characters)
         if (originalUrl.length > 2048) {
           return new Response(
             JSON.stringify({ error: "URL too long (max 2048 characters)" }),
@@ -340,7 +432,6 @@ export default {
           );
         }
 
-        // Validate URL format and scheme
         if (!isValidUrl(originalUrl)) {
           return new Response(
             JSON.stringify({
@@ -353,7 +444,6 @@ export default {
           );
         }
 
-        // Check for malicious URLs
         if (isMaliciousUrl(originalUrl)) {
           return new Response(
             JSON.stringify({ error: "This URL scheme is not allowed" }),
@@ -362,6 +452,17 @@ export default {
               headers: { "Content-Type": "application/json", ...corsHeaders },
             },
           );
+        }
+
+        // NEW: Suspicious URL detection
+        if (isSuspiciousUrl(originalUrl)) {
+          // Log for monitoring but still allow (or block if you want stricter)
+          console.log("Suspicious URL detected:", originalUrl);
+          // Uncomment below to block:
+          // return new Response(JSON.stringify({ error: "This URL has been flagged as potentially suspicious" }), {
+          //     status: 400,
+          //     headers: { "Content-Type": "application/json", ...corsHeaders },
+          // });
         }
 
         let code;
@@ -374,7 +475,6 @@ export default {
           existing = await env.URLS.get(code);
           attempts++;
           if (attempts >= maxAttempts) {
-            // Regenerate with different length if collision happens too many times
             code = generateShortCode(8);
             break;
           }
@@ -384,6 +484,7 @@ export default {
           original_url: originalUrl,
           created_at: new Date().toISOString(),
           clicks: 0,
+          ip: clientIP, // Log IP for abuse reporting
         };
 
         await env.URLS.put(code, JSON.stringify(urlData));
@@ -401,11 +502,9 @@ export default {
       }
     }
 
-    // Redirect with open redirect protection
     if (path.startsWith("/") && path.length > 1 && !path.startsWith("/api")) {
       const code = path.slice(1);
 
-      // Validate code format (alphanumeric only)
       if (!/^[a-zA-Z0-9]+$/.test(code)) {
         return new Response("Page not found", { status: 404 });
       }
@@ -417,14 +516,12 @@ export default {
         urlData.clicks = (urlData.clicks || 0) + 1;
         await env.URLS.put(code, JSON.stringify(urlData));
 
-        // Validate redirect URL to prevent open redirect
         if (
           isValidUrl(urlData.original_url) &&
           !isMaliciousUrl(urlData.original_url)
         ) {
           return Response.redirect(urlData.original_url, 302);
         }
-        // If invalid, redirect to home page instead
         return Response.redirect(url.origin, 302);
       }
     }
