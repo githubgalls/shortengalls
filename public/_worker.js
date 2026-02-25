@@ -116,7 +116,7 @@ const HTML_PAGE = `
         <div class="error" id="error"></div>
         <div class="result" id="result"></div>
         <div class="footer">
-            © <a href="#">c galls</a>
+            © <a href="#">2026 |GALLS</a>
         </div>
     </div>
     <script>
