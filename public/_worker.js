@@ -75,6 +75,16 @@ const HTML_PAGE = `
             display: none;
         }
         .error.show { display: block; }
+        .footer {
+            margin-top: 30px;
+            text-align: center;
+            color: #999;
+            font-size: 14px;
+        }
+        .footer a {
+            color: #667eea;
+            text-decoration: none;
+        }
         .urls-list {
             margin-top: 30px;
             border-top: 1px solid #eee;
@@ -105,6 +115,9 @@ const HTML_PAGE = `
         </form>
         <div class="error" id="error"></div>
         <div class="result" id="result"></div>
+        <div class="footer">
+            © <a href="#">c galls</a>
+        </div>
     </div>
     <script>
         const form = document.getElementById('shortenForm');
