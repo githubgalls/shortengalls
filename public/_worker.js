@@ -152,8 +152,10 @@ const HTML_PAGE = `
                     errorEl.textContent = data.error;
                     errorEl.classList.add('show');
                 } else {
-                    resultEl.innerHTML = 'Your shortened URL:<br><a href="' + data.short_url + '" target="_blank">' + data.short_url + '</a>';
+                    // URL shortened successfully - URL is saved but not displayed
+                    resultEl.innerHTML = 'URL shortened successfully!';
                     resultEl.classList.add('show');
+                    form.reset();
                     loadUrls();
                 }
             } catch (err) {
