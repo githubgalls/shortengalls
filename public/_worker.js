@@ -66,6 +66,11 @@ const HTML_PAGE = `
         }
         .result.show { display: block; }
         .result a { color: #667eea; font-weight: 600; word-break: break-all; }
+        .result-container { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .result-container input { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 14px; min-width: 200px; }
+        .copy-btn { padding: 10px 15px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; white-space: nowrap; }
+        .copy-btn:hover { background: #5568d3; }
+        .copy-btn.copied { background: #28a745; }
         .error {
             background: #fee;
             color: #c00;
@@ -85,27 +90,11 @@ const HTML_PAGE = `
             color: #667eea;
             text-decoration: none;
         }
-        .urls-list {
-            margin-top: 30px;
-            border-top: 1px solid #eee;
-            padding-top: 20px;
-        }
-        .urls-list h3 { color: #333; margin-bottom: 15px; }
-        .url-item {
-            background: #f9f9f9;
-            padding: 10px;
-            border-radius: 8px;
-            margin-bottom: 10px;
-            font-size: 14px;
-        }
-        .url-item a { color: #667eea; text-decoration: none; }
-        .url-item .original { color: #666; font-size: 12px; word-break: break-all; }
-        .url-item .clicks { color: #999; font-size: 11px; }
     </style>
 </head>
 <body>
     <div class="container">
-<h1>🔗 URL Shorten</h1>
+        <h1>🔗 URL Shorten</h1>
         <p>Memperpendek URL secara instant</p>
         <form id="shortenForm">
             <div class="form-group">
@@ -145,8 +134,7 @@ const HTML_PAGE = `
                     errorEl.textContent = data.error;
                     errorEl.classList.add('show');
                 } else {
-                    // Tampilkan hasil URL pendek
-                    resultEl.innerHTML = 'Short URL: <a href="' + data.short_url + '" target="_blank">' + data.short_url + '</a>';
+                    resultEl.innerHTML = '<div class="result-container"><input type="text" value="' + data.short_url + '" readonly id="shortUrlInput"><button class="copy-btn" onclick="copyUrl()">Copy</button></div>';
                     resultEl.classList.add('show');
                 }
             } catch (err) {
@@ -154,6 +142,21 @@ const HTML_PAGE = `
                 errorEl.classList.add('show');
             }
         });
+        
+        function copyUrl() {
+            const input = document.getElementById('shortUrlInput');
+            const btn = document.querySelector('.copy-btn');
+            input.select();
+            input.setSelectionRange(0, 99999);
+            navigator.clipboard.writeText(input.value).then(function() {
+                btn.textContent = 'Copied!';
+                btn.classList.add('copied');
+                setTimeout(function() {
+                    btn.textContent = 'Copy';
+                    btn.classList.remove('copied');
+                }, 2000);
+            });
+        }
     </script>
 </body>
 </html>
@@ -194,7 +197,6 @@ export default {
       return new Response(null, { headers: corsHeaders });
     }
 
-    // Home page
     if (path === "/" || path === "") {
       if (method === "GET") {
         return new Response(HTML_PAGE, {
@@ -206,7 +208,6 @@ export default {
       }
     }
 
-    // API: Shorten URL
     if (path === "/api/shorten" && method === "POST") {
       try {
         const body = await request.json();
@@ -243,14 +244,8 @@ export default {
         const shortUrl = url.origin + "/" + code;
 
         return new Response(
-          JSON.stringify({
-            success: true,
-            short_url: shortUrl,
-            code: code,
-          }),
-          {
-            headers: { "Content-Type": "application/json", ...corsHeaders },
-          },
+          JSON.stringify({ success: true, short_url: shortUrl, code: code }),
+          { headers: { "Content-Type": "application/json", ...corsHeaders } },
         );
       } catch (e) {
         return new Response(JSON.stringify({ error: "Invalid request" }), {
@@ -260,36 +255,6 @@ export default {
       }
     }
 
-    // API: Get all URLs
-    if (path === "/api/urls" && method === "GET") {
-      try {
-        const list = await env.URLS.list();
-        const urls = [];
-
-        for (const key of list.keys) {
-          const data = JSON.parse(await env.URLS.get(key.name));
-          urls.push({
-            code: key.name,
-            short_url: url.origin + "/" + key.name,
-            original_url: data.original_url,
-            clicks: data.clicks || 0,
-            created_at: data.created_at,
-          });
-        }
-
-        urls.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-
-        return new Response(JSON.stringify(urls), {
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        });
-      } catch (e) {
-        return new Response(JSON.stringify([]), {
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        });
-      }
-    }
-
-    // Redirect short URL
     if (path.startsWith("/") && path.length > 1 && !path.startsWith("/api")) {
       const code = path.slice(1);
       const data = await env.URLS.get(code);
@@ -298,7 +263,6 @@ export default {
         const urlData = JSON.parse(data);
         urlData.clicks = (urlData.clicks || 0) + 1;
         await env.URLS.put(code, JSON.stringify(urlData));
-
         return Response.redirect(urlData.original_url, 302);
       }
     }
