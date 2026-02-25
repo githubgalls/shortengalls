@@ -124,6 +124,10 @@ const HTML_PAGE = `
             ⚠️ This service is for legitimate URLs only. Abuse will be reported.
         </div>
         
+        <div class="footer">
+            &copy; 2026 | <a href="#">GALLS</a>
+        </div>
+        
         <div class="urls-list" id="urlsList"></div>
     </div>
 

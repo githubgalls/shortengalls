@@ -120,8 +120,8 @@ const HTML_PAGE = `
         <div class="warning">
             ⚠️ Layanan ini hanya untuk URL yang sah. Penyalahgunaan akan dilaporkan.
         </div>
-        <div class © <a href="#">2026="footer">
-            | GALLS</a>
+        <div class="footer">
+            &copy; 2026 | <a href="#">GALLS</a>
         </div>
     </div>
     <script>
@@ -201,35 +201,69 @@ const HTML_PAGE = `
 
 // ============ SECURITY CONFIG ============
 const rateLimitCache = new Map();
-const ALLOWED_SCHEMES = ['http:', 'https:'];
+const ALLOWED_SCHEMES = ["http:", "https:"];
 const BLOCKED_PATTERNS = [
-    /javascript:/i,
-    /data:/i,
-    /vbscript:/i,
-    /file:/i,
-    /about:/i,
-    /chrome:/i,
+  /javascript:/i,
+  /data:/i,
+  /vbscript:/i,
+  /file:/i,
+  /about:/i,
+  /chrome:/i,
 ];
 const RATE_LIMIT_WINDOW = 60 * 1000;
 const RATE_LIMIT_MAX_REQUESTS = 10;
 
 // Google Safe Browsing API config
-const SAFE_BROWSING_API_KEY = 'YOUR_SAFE_BROWSING_API_KEY'; // Replace with your API key
-const SAFE_BROWSING_URL = 'https://safebrowsing.googleapis.com/v4/threatMatches:find';
+const SAFE_BROWSING_API_KEY = "YOUR_SAFE_BROWSING_API_KEY"; // Replace with your API key
+const SAFE_BROWSING_URL =
+  "https://safebrowsing.googleapis.com/v4/threatMatches:find";
 
 const PHISHING_KEYWORDS = [
-    'login', 'signin', 'verify', 'secure', 'account', 'update', 
-    'confirm', 'banking', 'password', 'credential', 'auth',
-    'paypal', 'apple', 'microsoft', 'google', 'amazon',
-    'facebook', 'instagram', 'twitter', 'netflix', 'spotify',
-    'coinbase', 'binance', 'metamask', 'wallet', 'crypto'
+  "login",
+  "signin",
+  "verify",
+  "secure",
+  "account",
+  "update",
+  "confirm",
+  "banking",
+  "password",
+  "credential",
+  "auth",
+  "paypal",
+  "apple",
+  "microsoft",
+  "google",
+  "amazon",
+  "facebook",
+  "instagram",
+  "twitter",
+  "netflix",
+  "spotify",
+  "coinbase",
+  "binance",
+  "metamask",
+  "wallet",
+  "crypto",
 ];
 
-const BLOCKED_TLDS = ['.tk', '.ml', '.ga', '.cf', '.gq', '.xyz', '.top', '.work', '.click', '.link'];
+const BLOCKED_TLDS = [
+  ".tk",
+  ".ml",
+  ".ga",
+  ".cf",
+  ".gq",
+  ".xyz",
+  ".top",
+  ".work",
+  ".click",
+  ".link",
+];
 
 // ============ HELPER FUNCTIONS ============
 function generateShortCode(length = 6) {
-  const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  const chars =
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
   let code = "";
   for (let i = 0; i < length; i++) {
     code += chars[Math.floor(Math.random() * chars.length)];
@@ -247,145 +281,161 @@ function isValidUrl(string) {
 }
 
 function isMaliciousUrl(string) {
-    try {
-        const url = new URL(string);
-        if (!ALLOWED_SCHEMES.includes(url.protocol)) {
-            return true;
-        }
-        for (const pattern of BLOCKED_PATTERNS) {
-            if (pattern.test(string)) {
-                return true;
-            }
-        }
-        return false;
-    } catch (_) {
-        return true;
+  try {
+    const url = new URL(string);
+    if (!ALLOWED_SCHEMES.includes(url.protocol)) {
+      return true;
     }
+    for (const pattern of BLOCKED_PATTERNS) {
+      if (pattern.test(string)) {
+        return true;
+      }
+    }
+    return false;
+  } catch (_) {
+    return true;
+  }
 }
 
 function isSuspiciousUrl(string) {
-    try {
-        const url = new URL(string);
-        const hostname = url.hostname.toLowerCase();
-        
-        for (const tld of BLOCKED_TLDS) {
-            if (hostname.endsWith(tld)) {
-                return true;
-            }
-        }
-        
-        const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
-        if (ipRegex.test(hostname)) {
-            return true;
-        }
-        
-        const parts = hostname.split('.');
-        if (parts.length > 4) {
-            return true;
-        }
-        
-        const hasPhishingKeyword = PHISHING_KEYWORDS.some(kw => hostname.includes(kw));
-        
-        if (hasPhishingKeyword) {
-            const freeTLDs = ['.tk', '.ml', '.ga', '.cf', '.gq', '.xyz', '.top', '.work', '.click', '.link', '.pw', '.cc', '.ws'];
-            for (const tld of freeTLDs) {
-                if (hostname.endsWith(tld)) {
-                    return true;
-                }
-            }
-        }
-        
-        return false;
-    } catch (_) {
+  try {
+    const url = new URL(string);
+    const hostname = url.hostname.toLowerCase();
+
+    for (const tld of BLOCKED_TLDS) {
+      if (hostname.endsWith(tld)) {
         return true;
+      }
     }
+
+    const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
+    if (ipRegex.test(hostname)) {
+      return true;
+    }
+
+    const parts = hostname.split(".");
+    if (parts.length > 4) {
+      return true;
+    }
+
+    const hasPhishingKeyword = PHISHING_KEYWORDS.some((kw) =>
+      hostname.includes(kw),
+    );
+
+    if (hasPhishingKeyword) {
+      const freeTLDs = [
+        ".tk",
+        ".ml",
+        ".ga",
+        ".cf",
+        ".gq",
+        ".xyz",
+        ".top",
+        ".work",
+        ".click",
+        ".link",
+        ".pw",
+        ".cc",
+        ".ws",
+      ];
+      for (const tld of freeTLDs) {
+        if (hostname.endsWith(tld)) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  } catch (_) {
+    return true;
+  }
 }
 
 // ============ GOOGLE SAFE BROWSING CHECK ============
 async function checkSafeBrowsing(url, apiKey) {
-    if (!apiKey || apiKey === 'YOUR_SAFE_BROWSING_API_KEY') {
-        console.log('Safe Browsing API key not configured, skipping...');
-        return { safe: true };
+  if (!apiKey || apiKey === "YOUR_SAFE_BROWSING_API_KEY") {
+    console.log("Safe Browsing API key not configured, skipping...");
+    return { safe: true };
+  }
+
+  try {
+    const requestBody = {
+      client: {
+        clientId: "url-shortener-galls",
+        clientVersion: "1.0.0",
+      },
+      threatInfo: {
+        threatTypes: [
+          "MALWARE",
+          "SOCIAL_ENGINEERING",
+          "UNWANTED_SOFTWARE",
+          "POTENTIALLY_HARMFUL_APPLICATION",
+        ],
+        platformTypes: ["ANY_PLATFORM"],
+        threatEntryTypes: ["URL"],
+        threatEntries: [{ url: url }],
+      },
+    };
+
+    const response = await fetch(SAFE_BROWSING_URL + "?key=" + apiKey, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!response.ok) {
+      console.error("Safe Browsing API error:", response.status);
+      return { safe: true }; // Fail open
     }
-    
-    try {
-        const requestBody = {
-            client: {
-                clientId: "url-shortener-galls",
-                clientVersion: "1.0.0"
-            },
-            threatInfo: {
-                threatTypes: [
-                    "MALWARE", 
-                    "SOCIAL_ENGINEERING", 
-                    "UNWANTED_SOFTWARE",
-                    "POTENTIALLY_HARMFUL_APPLICATION"
-                ],
-                platformTypes: ["ANY_PLATFORM"],
-                threatEntryTypes: ["URL"],
-                threatEntries: [
-                    { url: url }
-                ]
-            }
-        };
-        
-        const response = await fetch(SAFE_BROWSING_URL + '?key=' + apiKey, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(requestBody)
-        });
-        
-        if (!response.ok) {
-            console.error('Safe Browsing API error:', response.status);
-            return { safe: true }; // Fail open
-        }
-        
-        const data = await response.json();
-        
-        if (data.matches && data.matches.length > 0) {
-            return { 
-                safe: false, 
-                threatType: data.matches[0].threatType,
-                platformType: data.matches[0].platformType
-            };
-        }
-        
-        return { safe: true };
-    } catch (e) {
-        console.error('Safe Browsing check failed:', e);
-        return { safe: true }; // Fail open
+
+    const data = await response.json();
+
+    if (data.matches && data.matches.length > 0) {
+      return {
+        safe: false,
+        threatType: data.matches[0].threatType,
+        platformType: data.matches[0].platformType,
+      };
     }
+
+    return { safe: true };
+  } catch (e) {
+    console.error("Safe Browsing check failed:", e);
+    return { safe: true }; // Fail open
+  }
 }
 
 function isRateLimited(ip) {
-    const now = Date.now();
-    const windowStart = now - RATE_LIMIT_WINDOW;
-    
-    for (const [key, timestamp] of rateLimitCache.entries()) {
-        if (timestamp < windowStart) {
-            rateLimitCache.delete(key);
-        }
+  const now = Date.now();
+  const windowStart = now - RATE_LIMIT_WINDOW;
+
+  for (const [key, timestamp] of rateLimitCache.entries()) {
+    if (timestamp < windowStart) {
+      rateLimitCache.delete(key);
     }
-    
-    const requestCount = (rateLimitCache.get(ip) || []).filter(t => t > windowStart).length;
-    
-    if (requestCount >= RATE_LIMIT_MAX_REQUESTS) {
-        return true;
-    }
-    
-    const timestamps = rateLimitCache.get(ip) || [];
-    timestamps.push(now);
-    rateLimitCache.set(ip, timestamps);
-    
-    return false;
+  }
+
+  const requestCount = (rateLimitCache.get(ip) || []).filter(
+    (t) => t > windowStart,
+  ).length;
+
+  if (requestCount >= RATE_LIMIT_MAX_REQUESTS) {
+    return true;
+  }
+
+  const timestamps = rateLimitCache.get(ip) || [];
+  timestamps.push(now);
+  rateLimitCache.set(ip, timestamps);
+
+  return false;
 }
 
 function getClientIP(request) {
-    const cfIP = request.headers.get('CF-Connecting-IP');
-    if (cfIP) return cfIP;
-    const forwarded = request.headers.get('X-Forwarded-For');
-    if (forwarded) return forwarded.split(',')[0];
-    return 'unknown';
+  const cfIP = request.headers.get("CF-Connecting-IP");
+  if (cfIP) return cfIP;
+  const forwarded = request.headers.get("X-Forwarded-For");
+  if (forwarded) return forwarded.split(",")[0];
+  return "unknown";
 }
 
 // ============ MAIN HANDLER ============
@@ -398,10 +448,13 @@ export default {
 
     // Rate limiting
     if (isRateLimited(clientIP)) {
-        return new Response(JSON.stringify({ error: "Too many requests. Please try again later." }), {
-            status: 429,
-            headers: { "Content-Type": "application/json" },
-        });
+      return new Response(
+        JSON.stringify({ error: "Too many requests. Please try again later." }),
+        {
+          status: 429,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
     }
 
     const corsHeaders = {
@@ -418,7 +471,10 @@ export default {
     if (path === "/" || path === "") {
       if (method === "GET") {
         return new Response(HTML_PAGE, {
-          headers: { "Content-Type": "text/html; charset=UTF-8", ...corsHeaders },
+          headers: {
+            "Content-Type": "text/html; charset=UTF-8",
+            ...corsHeaders,
+          },
         });
       }
     }
@@ -438,45 +494,70 @@ export default {
 
         // URL length validation
         if (originalUrl.length > 2048) {
-          return new Response(JSON.stringify({ error: "URL too long (max 2048 characters)" }), {
-            status: 400,
-            headers: { "Content-Type": "application/json", ...corsHeaders },
-          });
+          return new Response(
+            JSON.stringify({ error: "URL too long (max 2048 characters)" }),
+            {
+              status: 400,
+              headers: { "Content-Type": "application/json", ...corsHeaders },
+            },
+          );
         }
 
         // Validate URL scheme
         if (!isValidUrl(originalUrl)) {
-          return new Response(JSON.stringify({ error: "Invalid URL format. Only HTTP and HTTPS are allowed." }), {
-            status: 400,
-            headers: { "Content-Type": "application/json", ...corsHeaders },
-          });
+          return new Response(
+            JSON.stringify({
+              error: "Invalid URL format. Only HTTP and HTTPS are allowed.",
+            }),
+            {
+              status: 400,
+              headers: { "Content-Type": "application/json", ...corsHeaders },
+            },
+          );
         }
 
         // Check for malicious URL patterns
         if (isMaliciousUrl(originalUrl)) {
-          return new Response(JSON.stringify({ error: "This URL scheme is not allowed" }), {
-            status: 400,
-            headers: { "Content-Type": "application/json", ...corsHeaders },
-          });
+          return new Response(
+            JSON.stringify({ error: "This URL scheme is not allowed" }),
+            {
+              status: 400,
+              headers: { "Content-Type": "application/json", ...corsHeaders },
+            },
+          );
         }
 
         // Check suspicious URL (local heuristics)
         if (isSuspiciousUrl(originalUrl)) {
-          console.log("Suspicious URL detected by local heuristics:", originalUrl);
+          console.log(
+            "Suspicious URL detected by local heuristics:",
+            originalUrl,
+          );
         }
 
         // Google Safe Browsing API check
-        const safeBrowsingResult = await checkSafeBrowsing(originalUrl, env.SAFE_BROWSING_API_KEY || SAFE_BROWSING_API_KEY);
-        
+        const safeBrowsingResult = await checkSafeBrowsing(
+          originalUrl,
+          env.SAFE_BROWSING_API_KEY || SAFE_BROWSING_API_KEY,
+        );
+
         if (!safeBrowsingResult.safe) {
-            console.log("URL blocked by Safe Browsing:", originalUrl, safeBrowsingResult);
-            return new Response(JSON.stringify({ 
-                error: "This URL has been flagged as potentially harmful by Google's Safe Browsing service.",
-                threatType: safeBrowsingResult.threatType
-            }), {
-                status: 400,
-                headers: { "Content-Type": "application/json", ...corsHeaders },
-            });
+          console.log(
+            "URL blocked by Safe Browsing:",
+            originalUrl,
+            safeBrowsingResult,
+          );
+          return new Response(
+            JSON.stringify({
+              error:
+                "This URL has been flagged as potentially harmful by Google's Safe Browsing service.",
+              threatType: safeBrowsingResult.threatType,
+            }),
+            {
+              status: 400,
+              headers: { "Content-Type": "application/json", ...corsHeaders },
+            },
+          );
         }
 
         // Generate unique short code
@@ -484,14 +565,14 @@ export default {
         let existing;
         let attempts = 0;
         const maxAttempts = 10;
-        
+
         do {
           code = generateShortCode();
           existing = await env.URLS.get(code);
           attempts++;
           if (attempts >= maxAttempts) {
-              code = generateShortCode(8);
-              break;
+            code = generateShortCode(8);
+            break;
           }
         } while (existing);
 
@@ -501,7 +582,7 @@ export default {
           created_at: new Date().toISOString(),
           clicks: 0,
           ip: clientIP,
-          user_agent: request.headers.get('User-Agent') || 'unknown'
+          user_agent: request.headers.get("User-Agent") || "unknown",
         };
 
         await env.URLS.put(code, JSON.stringify(urlData));
@@ -509,7 +590,7 @@ export default {
 
         return new Response(
           JSON.stringify({ success: true, short_url: shortUrl, code: code }),
-          { headers: { "Content-Type": "application/json", ...corsHeaders } }
+          { headers: { "Content-Type": "application/json", ...corsHeaders } },
         );
       } catch (e) {
         return new Response(JSON.stringify({ error: "Invalid request" }), {
@@ -522,22 +603,25 @@ export default {
     // Redirect short URL
     if (path.startsWith("/") && path.length > 1 && !path.startsWith("/api")) {
       const code = path.slice(1);
-      
+
       // Validate code format (alphanumeric only, prevent injection)
       if (!/^[a-zA-Z0-9]+$/.test(code)) {
-          return new Response("Page not found", { status: 404 });
+        return new Response("Page not found", { status: 404 });
       }
-      
+
       const data = await env.URLS.get(code);
 
       if (data) {
         const urlData = JSON.parse(data);
         urlData.clicks = (urlData.clicks || 0) + 1;
         await env.URLS.put(code, JSON.stringify(urlData));
-        
+
         // Final validation before redirect
-        if (isValidUrl(urlData.original_url) && !isMaliciousUrl(urlData.original_url)) {
-            return Response.redirect(urlData.original_url, 302);
+        if (
+          isValidUrl(urlData.original_url) &&
+          !isMaliciousUrl(urlData.original_url)
+        ) {
+          return Response.redirect(urlData.original_url, 302);
         }
         return Response.redirect(url.origin, 302);
       }
