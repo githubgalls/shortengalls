@@ -1,6 +1,6 @@
 /**
  * URL Shortener - Cloudflare Workers Version
- * SECURE VERSION with Phishing Protection
+ * SECURE VERSION with Google Safe Browsing API + Full Security
  */
 
 const HTML_PAGE = `
@@ -57,6 +57,11 @@ const HTML_PAGE = `
             transform: translateY(-2px);
             box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
         }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
         .result {
             margin-top: 20px;
             padding: 15px;
@@ -110,7 +115,7 @@ const HTML_PAGE = `
             <div class="form-group">
                 <input type="url" name="url" placeholder="Enter your long URL here..." autocomplete="off" required>
             </div>
-            <button type="submit">Shorten URL</button>
+            <button type="submit" id="submitBtn">Shorten URL</button>
         </form>
         
         <div class="error" id="error"></div>
@@ -132,6 +137,7 @@ const HTML_PAGE = `
         const form = document.getElementById('shortenForm');
         const errorEl = document.getElementById('error');
         const resultEl = document.getElementById('result');
+        const submitBtn = document.getElementById('submitBtn');
         const urlsListEl = document.getElementById('urlsList');
         
         async function loadUrls() {
@@ -166,6 +172,9 @@ const HTML_PAGE = `
             errorEl.classList.remove('show');
             resultEl.classList.remove('show');
             
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Checking URL...';
+            
             try {
                 const response = await fetch('/api/shorten', {
                     method: 'POST',
@@ -186,6 +195,9 @@ const HTML_PAGE = `
             } catch (err) {
                 errorEl.textContent = 'An error occurred. Please try again.';
                 errorEl.classList.add('show');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Shorten URL';
             }
         });
     </script>
@@ -193,6 +205,7 @@ const HTML_PAGE = `
 </html>
 `;
 
+// ============ SECURITY CONFIG ============
 const rateLimitCache = new Map();
 const ALLOWED_SCHEMES = ["http:", "https:"];
 const BLOCKED_PATTERNS = [
@@ -205,6 +218,11 @@ const BLOCKED_PATTERNS = [
 ];
 const RATE_LIMIT_WINDOW = 60 * 1000;
 const RATE_LIMIT_MAX_REQUESTS = 10;
+
+// Google Safe Browsing API config
+const SAFE_BROWSING_API_KEY = "YOUR_SAFE_BROWSING_API_KEY"; // Replace with your API key
+const SAFE_BROWSING_URL =
+  "https://safebrowsing.googleapis.com/v4/threatMatches:find";
 
 const PHISHING_KEYWORDS = [
   "login",
@@ -248,6 +266,7 @@ const BLOCKED_TLDS = [
   ".link",
 ];
 
+// ============ HELPER FUNCTIONS ============
 function generateShortCode(length = 6) {
   const chars =
     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -338,6 +357,60 @@ function isSuspiciousUrl(string) {
   }
 }
 
+// ============ GOOGLE SAFE BROWSING CHECK ============
+async function checkSafeBrowsing(url, apiKey) {
+  if (!apiKey || apiKey === "YOUR_SAFE_BROWSING_API_KEY") {
+    console.log("Safe Browsing API key not configured, skipping...");
+    return { safe: true };
+  }
+
+  try {
+    const requestBody = {
+      client: {
+        clientId: "url-shortener-galls",
+        clientVersion: "1.0.0",
+      },
+      threatInfo: {
+        threatTypes: [
+          "MALWARE",
+          "SOCIAL_ENGINEERING",
+          "UNWANTED_SOFTWARE",
+          "POTENTIALLY_HARMFUL_APPLICATION",
+        ],
+        platformTypes: ["ANY_PLATFORM"],
+        threatEntryTypes: ["URL"],
+        threatEntries: [{ url: url }],
+      },
+    };
+
+    const response = await fetch(SAFE_BROWSING_URL + "?key=" + apiKey, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!response.ok) {
+      console.error("Safe Browsing API error:", response.status);
+      return { safe: true };
+    }
+
+    const data = await response.json();
+
+    if (data.matches && data.matches.length > 0) {
+      return {
+        safe: false,
+        threatType: data.matches[0].threatType,
+        platformType: data.matches[0].platformType,
+      };
+    }
+
+    return { safe: true };
+  } catch (e) {
+    console.error("Safe Browsing check failed:", e);
+    return { safe: true };
+  }
+}
+
 function isRateLimited(ip) {
   const now = Date.now();
   const windowStart = now - RATE_LIMIT_WINDOW;
@@ -371,6 +444,7 @@ function getClientIP(request) {
   return "unknown";
 }
 
+// ============ MAIN HANDLER ============
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -454,7 +528,35 @@ export default {
         }
 
         if (isSuspiciousUrl(originalUrl)) {
-          console.log("Suspicious URL detected:", originalUrl);
+          console.log(
+            "Suspicious URL detected by local heuristics:",
+            originalUrl,
+          );
+        }
+
+        // Google Safe Browsing API check
+        const safeBrowsingResult = await checkSafeBrowsing(
+          originalUrl,
+          env.SAFE_BROWSING_API_KEY || SAFE_BROWSING_API_KEY,
+        );
+
+        if (!safeBrowsingResult.safe) {
+          console.log(
+            "URL blocked by Safe Browsing:",
+            originalUrl,
+            safeBrowsingResult,
+          );
+          return new Response(
+            JSON.stringify({
+              error:
+                "This URL has been flagged as potentially harmful by Google's Safe Browsing service.",
+              threatType: safeBrowsingResult.threatType,
+            }),
+            {
+              status: 400,
+              headers: { "Content-Type": "application/json", ...corsHeaders },
+            },
+          );
         }
 
         let code;
@@ -477,6 +579,7 @@ export default {
           created_at: new Date().toISOString(),
           clicks: 0,
           ip: clientIP,
+          user_agent: request.headers.get("User-Agent") || "unknown",
         };
 
         await env.URLS.put(code, JSON.stringify(urlData));
