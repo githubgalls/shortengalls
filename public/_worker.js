@@ -54,8 +54,15 @@ const HTML_PAGE = `
             transition: transform 0.2s, box-shadow 0.2s;
         }
         button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+            transform: translateY(-2px: 0 );
+            box-shadow10px 30px rgba(102, 126, 234, 0.4);
+        }
+        .btn-secondary {
+            background: #666 !important;
+            margin-top: 10px;
+        }
+        .btn-secondary:hover {
+            box-shadow: 0 10px 30px rgba(102, 102, 102, 0.4) !important;
         }
         .result {
             margin-top: 20px;
@@ -98,10 +105,11 @@ const HTML_PAGE = `
         <p>Memperpendek URL secara instant</p>
         <form id="shortenForm">
             <div class="form-group">
-<input type="url" name="url" placeholder="Enter your long URL here..." autocomplete="off" required>
+                <input type="url" name="url" placeholder="Enter your long URL here..." autocomplete="off" required>
             </div>
             <button type="submit">Shorten URL</button>
         </form>
+        <button class="btn-secondary" onclick="resetForm()">Refresh</button>
         <div class="error" id="error"></div>
         <div class="result" id="result"></div>
         <div class="footer">
@@ -156,6 +164,12 @@ const HTML_PAGE = `
                     btn.classList.remove('copied');
                 }, 2000);
             });
+        }
+        
+        function resetForm() {
+            form.reset();
+            errorEl.classList.remove('show');
+            resultEl.classList.remove('show');
         }
     </script>
 </body>
