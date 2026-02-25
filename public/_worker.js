@@ -95,7 +95,7 @@ const HTML_PAGE = `
 </head>
 <body>
     <div class="container">
-<h1>🔗 URL Short URL</h1>
+<h1>🔗 URL Shorten</h1>
         <p>Shorten your long URLs instantly!</p>
         <form id="shortenForm">
             <div class="form-group">
